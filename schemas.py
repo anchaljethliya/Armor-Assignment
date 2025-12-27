@@ -36,7 +36,7 @@ class AccountResponse(BaseModel):
     balance: float
 
     class Config:
-        from_attributes = True  # Allows conversion from SQLAlchemy models
+        from_attributes = True
 
 
 class TransactionResponse(BaseModel):
@@ -65,14 +65,10 @@ class TransactionHistoryResponse(BaseModel):
     total_transactions: int
 
 
-# Input schemas for GET endpoints (SAFE-MCP compliance)
 class EmptyInput(BaseModel):
-    """
-    Empty input schema for endpoints without input parameters.
-    SAFE-MCP compliant: extra fields are forbidden.
-    """
+    """Empty input schema."""
     class Config:
-        extra = "forbid"  # SAFE-MCP-002, 301, 302, 303: No additionalProperties allowed
+        extra = "forbid"
 
 
 class BalanceQueryInput(BaseModel):
