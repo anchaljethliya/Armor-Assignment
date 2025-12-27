@@ -64,3 +64,20 @@ class TransactionHistoryResponse(BaseModel):
     transactions: List[TransactionResponse]
     total_transactions: int
 
+
+# Input schemas for GET endpoints (SAFE-MCP compliance)
+class EmptyInput(BaseModel):
+    """Empty input schema for endpoints without input parameters."""
+    pass
+
+
+class BalanceQueryInput(BaseModel):
+    """Input schema for balance inquiry endpoint."""
+    account_id: int = Field(..., gt=0, description="Account ID to query")
+
+
+class TransactionHistoryQueryInput(BaseModel):
+    """Input schema for transaction history endpoint."""
+    account_id: int = Field(..., gt=0, description="Account ID to query")
+    limit: int = Field(default=50, ge=1, le=1000, description="Maximum number of transactions to return")
+

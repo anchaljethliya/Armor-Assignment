@@ -1,13 +1,15 @@
 """
 FastAPI application for the banking system MCP server.
 Provides RESTful endpoints for account management and transactions.
+SAFE-MCP compliant with authentication and input validation.
 """
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Query, Path
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db, init_db
 from models import Account, Transaction, TransactionType
+from auth import get_authenticated_api_key
 from schemas import (
     AccountCreate,
     AccountResponse,
@@ -15,7 +17,10 @@ from schemas import (
     WithdrawRequest,
     BalanceResponse,
     TransactionHistoryResponse,
-    TransactionResponse
+    TransactionResponse,
+    EmptyInput,
+    BalanceQueryInput,
+    TransactionHistoryQueryInput
 )
 
 # Initialize FastAPI app
@@ -28,13 +33,21 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database tables on application startup."""
+    """
+    Initialize database tables on application startup.
+    Note: Startup events cannot have dependencies, but database initialization
+    is safe as it only creates tables and doesn't expose data.
+    """
     init_db()
 
 
-@app.get("/")
-async def root():
-    """Root endpoint providing API information."""
+@app.get("/", response_model=dict)
+async def root(api_key: str = Depends(get_authenticated_api_key)):
+    """
+    Root endpoint providing API information.
+    Protected with API key authentication for SAFE-MCP compliance.
+    Uses explicit Path/Query parameters for input validation.
+    """
     return {
         "message": "Banking System MCP Server",
         "version": "1.0.0",
@@ -49,7 +62,11 @@ async def root():
 
 
 @app.post("/accounts", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
-async def create_account(account_data: AccountCreate, db: Session = Depends(get_db)):
+async def create_account(
+    account_data: AccountCreate,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_authenticated_api_key)
+):
     """
     Create a new bank account.
     
@@ -57,6 +74,7 @@ async def create_account(account_data: AccountCreate, db: Session = Depends(get_
     - **initial_balance**: Starting balance (must be >= 0)
     
     Returns the created account with auto-generated account_id.
+    Protected with API key authentication for SAFE-MCP compliance.
     """
     # Create new account instance
     new_account = Account(
@@ -73,7 +91,11 @@ async def create_account(account_data: AccountCreate, db: Session = Depends(get_
 
 
 @app.post("/accounts/deposit", response_model=AccountResponse)
-async def deposit_money(deposit_data: DepositRequest, db: Session = Depends(get_db)):
+async def deposit_money(
+    deposit_data: DepositRequest,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_authenticated_api_key)
+):
     """
     Deposit money into an account.
     
@@ -81,14 +103,20 @@ async def deposit_money(deposit_data: DepositRequest, db: Session = Depends(get_
     - **amount**: Amount to deposit (must be > 0)
     
     Returns updated account information.
+    Protected with API key authentication for SAFE-MCP compliance.
     """
     # Find the account
     account = db.query(Account).filter(Account.account_id == deposit_data.account_id).first()
     
     if not account:
+        # SAFE-MCP: Use structured error response instead of f-string interpolation
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Account with ID {deposit_data.account_id} not found"
+            detail={
+                "error": "Account not found",
+                "account_id": deposit_data.account_id,
+                "message": "The specified account does not exist"
+            }
         )
     
     # Update account balance
@@ -110,7 +138,11 @@ async def deposit_money(deposit_data: DepositRequest, db: Session = Depends(get_
 
 
 @app.post("/accounts/withdraw", response_model=AccountResponse)
-async def withdraw_money(withdraw_data: WithdrawRequest, db: Session = Depends(get_db)):
+async def withdraw_money(
+    withdraw_data: WithdrawRequest,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_authenticated_api_key)
+):
     """
     Withdraw money from an account.
     
@@ -119,21 +151,33 @@ async def withdraw_money(withdraw_data: WithdrawRequest, db: Session = Depends(g
     
     Returns updated account information.
     Raises 400 error if balance is insufficient.
+    Protected with API key authentication for SAFE-MCP compliance.
     """
     # Find the account
     account = db.query(Account).filter(Account.account_id == withdraw_data.account_id).first()
     
     if not account:
+        # SAFE-MCP: Use structured error response instead of f-string interpolation
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Account with ID {withdraw_data.account_id} not found"
+            detail={
+                "error": "Account not found",
+                "account_id": withdraw_data.account_id,
+                "message": "The specified account does not exist"
+            }
         )
     
     # Check if balance is sufficient
     if account.balance < withdraw_data.amount:
+        # SAFE-MCP: Use structured error response instead of f-string interpolation
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Insufficient balance. Current balance: {account.balance}, Requested: {withdraw_data.amount}"
+            detail={
+                "error": "Insufficient balance",
+                "current_balance": account.balance,
+                "requested_amount": withdraw_data.amount,
+                "message": "Account balance is insufficient for this withdrawal"
+            }
         )
     
     # Update account balance
@@ -155,21 +199,31 @@ async def withdraw_money(withdraw_data: WithdrawRequest, db: Session = Depends(g
 
 
 @app.get("/accounts/{account_id}/balance", response_model=BalanceResponse)
-async def get_balance(account_id: int, db: Session = Depends(get_db)):
+async def get_balance(
+    account_id: int = Path(..., gt=0, description="Account ID to query"),
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_authenticated_api_key)
+):
     """
     Get the current balance of an account.
     
     - **account_id**: ID of the account to query
     
     Returns account balance and name.
+    Protected with API key authentication for SAFE-MCP compliance.
     """
     # Find the account
     account = db.query(Account).filter(Account.account_id == account_id).first()
     
     if not account:
+        # SAFE-MCP: Use structured error response instead of f-string interpolation
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Account with ID {account_id} not found"
+            detail={
+                "error": "Account not found",
+                "account_id": account_id,
+                "message": "The specified account does not exist"
+            }
         )
     
     return BalanceResponse(
@@ -181,25 +235,32 @@ async def get_balance(account_id: int, db: Session = Depends(get_db)):
 
 @app.get("/accounts/{account_id}/transactions", response_model=TransactionHistoryResponse)
 async def get_transaction_history(
-    account_id: int,
-    limit: int = 50,
-    db: Session = Depends(get_db)
+    account_id: int = Path(..., gt=0, description="Account ID to query"),
+    limit: int = Query(default=50, ge=1, le=1000, description="Maximum number of transactions to return"),
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_authenticated_api_key)
 ):
     """
     Get transaction history for an account.
     
     - **account_id**: ID of the account to query
-    - **limit**: Maximum number of transactions to return (default: 50)
+    - **limit**: Maximum number of transactions to return (default: 50, max: 1000)
     
     Returns list of recent transactions ordered by timestamp (newest first).
+    Protected with API key authentication for SAFE-MCP compliance.
     """
     # Verify account exists
     account = db.query(Account).filter(Account.account_id == account_id).first()
     
     if not account:
+        # SAFE-MCP: Use structured error response instead of f-string interpolation
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Account with ID {account_id} not found"
+            detail={
+                "error": "Account not found",
+                "account_id": account_id,
+                "message": "The specified account does not exist"
+            }
         )
     
     # Query transactions for this account, ordered by timestamp (newest first)

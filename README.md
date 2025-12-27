@@ -24,6 +24,29 @@ A simple banking system API built with FastAPI, SQLAlchemy, and SQLite. This ser
 └── banking.db       # SQLite database (created automatically)
 ```
 
+## 🔒 Security (SAFE-MCP Compliant)
+
+This server implements API key authentication for SAFE-MCP compliance.
+
+**Required**: Set the `ARMOR_API_KEY` environment variable before starting the server.
+
+```powershell
+# Windows PowerShell
+$env:ARMOR_API_KEY="your-secret-api-key-here"
+
+# Then start server
+python -m uvicorn main:app --reload
+```
+
+**All requests must include the API key in the header**:
+```bash
+curl -H "X-API-Key: your-secret-api-key-here" http://localhost:8000/
+```
+
+See `SECURITY_COMPLIANCE.md` for detailed security information.
+
+---
+
 ## Setup Instructions
 
 ### Prerequisites
