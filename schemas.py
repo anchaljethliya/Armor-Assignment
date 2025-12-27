@@ -67,8 +67,12 @@ class TransactionHistoryResponse(BaseModel):
 
 # Input schemas for GET endpoints (SAFE-MCP compliance)
 class EmptyInput(BaseModel):
-    """Empty input schema for endpoints without input parameters."""
-    pass
+    """
+    Empty input schema for endpoints without input parameters.
+    SAFE-MCP compliant: extra fields are forbidden.
+    """
+    class Config:
+        extra = "forbid"  # SAFE-MCP-002, 301, 302, 303: No additionalProperties allowed
 
 
 class BalanceQueryInput(BaseModel):

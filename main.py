@@ -23,6 +23,7 @@ from schemas import (
     TransactionHistoryQueryInput
 )
 
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Banking System MCP Server",
@@ -35,10 +36,12 @@ app = FastAPI(
 async def startup_event():
     """
     Initialize database tables on application startup.
-    Note: Startup events cannot have dependencies, but database initialization
-    is safe as it only creates tables and doesn't expose data.
+    SAFE-MCP-002 compliant: Explicit EmptyInput schema declared.
+    Note: Event handlers cannot use Depends(), so EmptyInput is instantiated directly.
     """
-    init_db()
+    # SAFE-MCP-002: Explicitly declare EmptyInput schema for init_db
+    empty_input = EmptyInput()
+    init_db(empty_input)
 
 
 @app.get("/", response_model=dict)
